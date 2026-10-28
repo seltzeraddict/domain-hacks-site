@@ -1,0 +1,25 @@
+/* The 404 page only. Plain CSS so it works without the app's build, under the same Content-Security-Policy. */
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  box-sizing: border-box;
+  background: #0c0e0f;
+  color: #feece9;
+  font: 1.1rem/1.5 sans-serif;
+}
+
+main {
+  max-width: 34rem;
+}
+
+h1 {
+  font-family: monospace;
+  font-weight: normal;
+}
+
+a {
+  color: #f7a09e;
+}
