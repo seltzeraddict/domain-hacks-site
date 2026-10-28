@@ -1,117 +1,83 @@
 <template>
-  <span class="pair" 
-    >
-    <div :class="['tooltip', 'status-' + this.status]">
-      {{ tooltipText[this.status] }}
-    </div>
-    {{ pair[0] }}.<span :class="['tld', 'status-' + this.status]">{{
-      pair[1]
-    }}</span>
-    
+  <span :class="['pair', 'status-' + status]" tabindex="0">
+    <div :class="['tooltip', 'status-' + status]">{{ tooltipText[status] }}</div>
+    {{ label }}<wbr>.<span :class="['tld', 'status-' + status]">{{ tld }}</span>
   </span>
 </template>
 
-<script>
-//  @click="copyToClipboard(pair[0]+'.'+pair[1])"
-export default {
-  props: ["pair"],
-  data() {
-    return {
-      tooltipText: [
-        "This one seems to be free to take.",
-        "That's just the tld. Try to put something in front!",
-        "This one seems to be taken. Try to add something in front.",
-      ],
-      domainStatus: {},
-      status: "2", // 0: available, 1: tld only, 2: taken
-    };
+<script setup>
+import { ref, watch } from 'vue'
+import { lookupDomain } from '../apis.js'
+import { Status, statusFromDns } from '../domains.js'
+
+const props = defineProps({
+  label: { type: String, required: true },
+  tld: { type: String, required: true },
+})
+
+const tooltipText = {
+  [Status.CHECKING]: 'Checking . . .',
+  [Status.FREE]: 'Might be available.',
+  [Status.TLD_ONLY]: "That's just the tld. Try to put something in front!",
+  [Status.TAKEN]: 'Already registered.',
+  [Status.UNKNOWN]: "Couldn't check this one.",
+}
+
+const status = ref(Status.CHECKING)
+
+watch(
+  () => [props.label, props.tld],
+  async ([label, tld], _, onCleanup) => {
+    if (!label) {
+      status.value = Status.TLD_ONLY
+      return
+    }
+    const lookup = new AbortController()
+    onCleanup(() => lookup.abort()) // props changed or component gone: drop the old answer
+    status.value = Status.CHECKING
+    try {
+      status.value = statusFromDns(await lookupDomain(`${label}.${tld}`, lookup.signal))
+    } catch (error) {
+      if (error.name !== 'AbortError') status.value = Status.UNKNOWN
+    }
   },
-  computed: {},
-  watch: {
-    pair: {
-      deep: true,
-      immediate: true,
-      async handler() {
-        if (this.pair.length <= 0) {
-          return;
-        }
-        var resp = {};
-        if (this.pair[0].length == 0) {
-          resp[this.pair[1]] = { isNull: true };
-        } else {
-          try {
-            const query =
-              "https://dns.google/resolve?name=" +
-              this.pair[0] +
-              "." +
-              this.pair[1];
-            const response = await fetch(query);
-            const json = await response.json();
-            //   console.dir({ query, json });
-            resp[this.pair[1]] = json;
-          } catch (error) {
-            resp[this.pair[1]] = { isNull: error };
-          }
-        }
-        this.domainStatus = resp;
-        this.updateStatus();
-      },
-    },
-  },
-  methods: {
-    updateStatus() {
-      if (this.pair[0].length <= 0) {
-        this.status = 1;
-        return;
-      } else if (
-        this.domainStatus[this.pair[1]] &&
-        this.domainStatus[this.pair[1]].Answer
-      ) {
-        this.status = 2;
-        return;
-      } else {
-        this.status = 0;
-        return;
-      }
-    },
-    copyToClipboard(text) {
-      var dummy = document.createElement("textarea");
-      document.body.appendChild(dummy);
-      dummy.value = text;
-      dummy.select();
-      document.execCommand("copy");
-      document.body.removeChild(dummy);
-    },
-  },
-  mounted() {
-    this.updateStatus();
-  },
-};
+  { immediate: true },
+)
 </script>
 
 <style lang="scss">
 .pair {
   position: relative;
-  white-space: nowrap;
+  min-width: 0; // a flex item: moves to the next line first, and only wraps when too long for a line of its own
+  overflow-wrap: anywhere;
   padding: 0 0.75rem 0 0;
+  &.status-taken {
+    text-decoration: line-through;
+  }
   .tld {
-    &.status-0 {
+    &.status-free {
       color: var(--success-color);
     }
 
-    &.status-1 {
+    &.status-tld-only {
       color: var(--warn-color);
+    }
+
+    &.status-checking,
+    &.status-unknown {
+      color: var(--text-color);
+      opacity: 0.6;
     }
     color: var(--error-color);
   }
   .tooltip {
-    &.status-0 {
+    &.status-free {
       background: var(--success-color);
       &:after {
         border-color: transparent transparent var(--success-color) transparent;
       }
     }
-    &.status-1 {
+    &.status-tld-only {
       background: var(--warn-color);
       &:after {
         border-color: transparent transparent var(--warn-color) transparent;
@@ -120,6 +86,10 @@ export default {
     position: absolute;
     user-select: none;
     padding: 0 0.5rem;
+    white-space: normal;
+    width: max-content;
+    max-width: 14rem;
+    text-decoration: none;
     right: calc(50% + 0.375rem);
     top: 150%;
     transform: translate(50%, 0);
@@ -140,7 +110,8 @@ export default {
       border-color: transparent transparent var(--highlight-color) transparent;
     }
   }
-  &:hover .tooltip {
+  &:hover .tooltip,
+  &:focus .tooltip {
     opacity: 1;
     pointer-events: all;
   }

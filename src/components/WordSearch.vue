@@ -1,69 +1,89 @@
 <template>
-  <div class="searchbar bordergradient">
-      <button @click="submit">Get some fresh synonyms!</button>
-      <input type="text" :placeholder=placeholder v-model="query" @keyup.enter=submit>
-  </div>
+  <form class="searchbar" role="search" @submit.prevent="search(query)">
+    <div class="field bordergradient">
+      <input type="text" :placeholder="placeholder" aria-label="Word to search for" :maxlength="MAX_QUERY_LENGTH" v-model="query">
+      <button type="submit"><span class="label">Find domain hacks</span></button>
+    </div>
+  </form>
 </template>
 
-<script>
-import {mapState} from "vuex";
+<script setup>
+import { ref, watch } from 'vue'
+import { MAX_QUERY_LENGTH } from '../share.js'
+import { search, state } from '../store.js'
 
-export default {
-    props: {
-        placeholder: {default: "Search..."}
-    },
-    data: function(){
-        return{
-            query:""
-        }
-    },
-    computed: {
-        ...mapState(['words']),
-    },
-    methods: {
-        submit(){
-            this.$store.dispatch('loadWords', this.query);
-        }
-    }
-}
+defineProps({
+  placeholder: { type: String, default: 'Search...' },
+})
+
+// A shared link, Back or Forward changes the search without the form: show what is being searched.
+const query = ref(state.query)
+watch(() => state.query, (current) => (query.value = current))
 </script>
 
 <style lang="scss">
-    .searchbar{
-        position: relative;
-        grid-column-start: 6;
-        grid-column-end: var(--search-right-column);
-        grid-row-start: calc(2 + var(--head-height));
-        grid-row-end: calc(2 + var(--head-height) + var(--search-height));
+// Pinned where a search puts it, one gap below the top of the window (level with the side column), while the
+// results scroll under it.
+.searchbar {
+  position: sticky;
+  top: var(--gap);
+  z-index: 2;
+  padding: var(--border-width) 0;
+  background: var(--background); // results scrolling under it stay hidden
 
-        input[type=text]{
-            background: var(--background);
-            border: none;
-            margin: var(--margin-partial) var(--margin-partial) var(--margin-partial) 0;
-            padding: 0 .75em;
-            height: calc(100% - var(--margin-partial) - var(--margin-partial));
-            width: calc(100% - var(--margin-partial));
-            color: var(--text-color);
-            &::placeholder{
-                color: var(--text-color);
-                opacity: .5;
-            }
-        }
-        button{
-            position: absolute;
-            height: calc(100% - 1.5rem);
-            width: 70%;
-            top: .75rem;
-            right: 100%; //calc(100% + .75rem);
-            
-            //@warnfont-weight: var(--text-weight-bold);
-            color: var(--text-color-highlight);
-            background: none;
-            border: none;
-            &::after{
-                content: "→";
-                margin: 1rem;
-            }
-        }
+  // Covers the gap above it too, with the page's own background, so results don't show through there.
+  &::before {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: 100%;
+    left: 0;
+    height: var(--gap);
+    background: var(--background) var(--plus-pattern) fixed;
+  }
+
+  .field {
+    display: flex;
+  }
+
+  input[type=text] {
+    flex: 1;
+    min-width: 0;
+    margin: .5em;
+    padding: .5em .75em;
+    font-size: max(16px, 1rem); // smaller makes phones zoom in on focus
+    background: var(--background);
+    border: none;
+    color: var(--text-color);
+    &::placeholder {
+      color: var(--text-color);
+      opacity: .5;
     }
+  }
+
+  button {
+    flex: none;
+    padding: 0 1em 0 .5em;
+    color: var(--text-color-highlight);
+    background: none;
+    border: none;
+    cursor: pointer;
+    &::after {
+      content: "→";
+      margin-left: .75em;
+    }
+  }
+}
+
+// Narrow: just the arrow. The button keeps its words for screen readers.
+@media (max-width: 37em) {
+  .searchbar .label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
 </style>

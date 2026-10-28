@@ -1,61 +1,35 @@
 <template>
-  <tr class="wordinfo">
-    <th class="">{{ word.word }}</th>
-    <td>
-        <list-pair v-for="pair in tldSep" :key="pair[1]" :pair="pair"/>
-    </td>
-  </tr>
+  <div class="wordinfo">
+    <dt :title="word.word"><span class="word">{{ word.word }}</span></dt>
+    <dd class="domains">
+      <ListPair v-for="domain in word.domains" :key="domain.tld" :label="domain.label" :tld="domain.tld" />
+    </dd>
+  </div>
 </template>
 
-<script>
-import { mapState } from "vuex"
-import ListPair from "@/components/ListPair.vue"
-export default {
-  components: {
-      "list-pair": ListPair
-  },
-  props: ["word"],
-  data() {
-    return {
-      domainStatus: {},
-    };
-  },
-  computed: {
-    ...mapState(["settings"]),
-    tldSep() {
-      let words = [];
-      for (const tldid in this.word.tlds) {
-        const tld = this.word.tlds[tldid];
-        const remainder = this.word.word.substring(
-          0,
-          this.word.word.length - tld.length
-        );
-        words.push([
-          remainder.trim().replace(/\s/g, this.settings.urlSeparator),
-          tld.toLowerCase(),
-        ]);
-      }
-      return words;
-    },
-  },
-};
+<script setup>
+import ListPair from './ListPair.vue'
+
+defineProps({
+  word: { type: Object, required: true },
+})
 </script>
 
 <style lang="scss">
 .wordinfo {
-    position: relative;
-  border: none;
-  
-      border-collapse: collapse;
-  height: calc(var(--grid-row-height) / 2);
-  width: 100%;
-  //display: block;
-  position: relative;
-  th {
-    border: none;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  padding: .2em 0;
+  break-inside: avoid;
+  // Rows rise in one after another; past the first 20 (mostly below the fold) they come all at once.
+  animation: rise .45s cubic-bezier(.2, .8, .3, 1) backwards; // not "both": a lasting transform would trap tooltips under the next row
+  animation-delay: calc(min(var(--index), 20) * 25ms);
+  dt {
+    display: flex;
+    justify-content: flex-end;
+    min-width: 0;
     white-space: nowrap;
-    padding: 0 0 0 0.75rem;
-    text-align: right;
     font-family: var(--heading-font);
     font-weight: var(--heading-weight);
     font-style: var(--heading-style);
@@ -64,14 +38,44 @@ export default {
       padding: 0 0.65rem;
     }
   }
-  td {
-    border: none;
-    //display: inline-block;
-    padding: 0 0.75rem 0 0;
+  // As wide as the longest word, so the arrows line up. When space runs out the word gives way, not its domains
+  // (which spell it out anyway).
+  .word {
+    width: calc(var(--longest) * 1ch + .2em); // .2em: italics lean past their box
+    max-width: 45cqi;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
   }
-//   background-color: var(--background-highlight);
+  dd {
+    margin: 0;
+  }
+  .domains {
+    display: flex;
+    flex-wrap: wrap;
+  }
   &:hover {
     background-color: var(--background);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(.6em);
+  }
+}
+
+// The reset shortens animations for reduced motion, but the delays would still stagger the rows.
+@media (prefers-reduced-motion: reduce) {
+  .wordinfo {
+    animation: none;
+  }
+}
+
+@container (min-width: 38rem) {
+  .wordinfo .word {
+    max-width: 24cqi;
   }
 }
 </style>

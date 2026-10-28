@@ -1,0 +1,51 @@
+# On every push to main: test, build, and commit dist/ to the `deploy` branch, which site-sync on monserver
+# serves (stacks/monserver/sites/sites.conf in floatinglab-estate). One commit there per build, named after the
+# main commit it came from, so `site-sync status` traces back to the source.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Commit dist/ to the deploy branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git ls-remote --exit-code --heads origin deploy > /dev/null; then
+            git fetch --depth=1 origin deploy:refs/remotes/origin/deploy
+            git worktree add -B deploy out origin/deploy
+          else
+            git worktree add --detach out
+            git -C out checkout --orphan deploy
+            git -C out rm -rfq .
+          fi
+          find out -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -R dist/. out/
+          cd out
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'Build unchanged, nothing to deploy.'
+            exit 0
+          fi
+          git commit -m "Build of $GITHUB_SHA" -m "$(git -C .. log -1 --format=%s)"
+          git push origin deploy
